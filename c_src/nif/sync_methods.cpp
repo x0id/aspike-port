@@ -336,6 +336,113 @@ ERL_NIF_TERM aspike_nif_cdt_get_sync(ErlNifEnv* env, int argc, const ERL_NIF_TER
     return enif_make_tuple2(env, rc, msg);
 }
 
+ERL_NIF_TERM aspike_nif_cdt_select_sync(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    static aerospike* as = get_aerospike();
+
+    ErlNifBinary bin_ns, bin_set, bin_key;
+    string name_space, aspk_set, aspk_key;
+
+    if (!enif_inspect_binary(env, argv[0], &bin_ns)) {
+        return enif_make_badarg(env);
+    }
+    name_space.assign((const char*)bin_ns.data, bin_ns.size);
+
+    if (!enif_inspect_binary(env, argv[1], &bin_set)) {
+        return enif_make_badarg(env);
+    }
+    aspk_set.assign((const char*)bin_set.data, bin_set.size);
+
+    if (!enif_inspect_binary(env, argv[2], &bin_key)) {
+        return enif_make_badarg(env);
+    }
+    aspk_key.assign((const char*)bin_key.data, bin_key.size);
+
+    // argv[3] is a list of bin name binaries
+    unsigned int bin_list_len;
+    if (!enif_get_list_length(env, argv[3], &bin_list_len) || bin_list_len == 0) {
+        return enif_make_badarg(env);
+    }
+
+    vector<string> bin_name_strs;
+    bin_name_strs.reserve(bin_list_len);
+    ERL_NIF_TERM list = argv[3];
+    ERL_NIF_TERM head;
+    for (unsigned int i = 0; i < bin_list_len; i++) {
+        enif_get_list_cell(env, list, &head, &list);
+        ErlNifBinary bin;
+        if (!enif_inspect_binary(env, head, &bin)) {
+            return enif_make_badarg(env);
+        }
+        bin_name_strs.emplace_back((const char*)bin.data, bin.size);
+    }
+
+    vector<const char*> bins(bin_list_len + 1);
+    for (unsigned int i = 0; i < bin_list_len; i++) {
+        bins[i] = bin_name_strs[i].c_str();
+    }
+    bins[bin_list_len] = NULL;
+
+    // argv[4] is policy tuple {max_retries, sleep_between_retries, socket_timeout, total_timeout}
+    const ERL_NIF_TERM* policy = NULL;
+    int policy_length;
+    long max_retries = 0;
+    long sleep_between_retries = 0;
+    long socket_timeout = 30000;
+    long total_timeout = 1000;
+    if (!enif_get_tuple(env, argv[4], &policy_length, &policy) || policy_length != 4) {
+        return enif_make_badarg(env);
+    }
+    enif_get_long(env, policy[0], &max_retries);
+    enif_get_long(env, policy[1], &sleep_between_retries);
+    enif_get_long(env, policy[2], &socket_timeout);
+    enif_get_long(env, policy[3], &total_timeout);
+
+    ERL_NIF_TERM return_data;
+    if (!is_connected(env, &return_data)) return return_data;
+
+    ERL_NIF_TERM rc, msg;
+    as_error err;
+    as_key key;
+    as_record* p_rec = NULL;
+
+    as_key_init_str(&key, name_space.c_str(), aspk_set.c_str(), aspk_key.c_str());
+    as_policy_read p;
+    as_policy_read_init(&p);
+    p.base.max_retries = max_retries;
+    p.base.sleep_between_retries = sleep_between_retries;
+    p.base.socket_timeout = socket_timeout;
+    p.base.total_timeout = total_timeout;
+
+    SyncOperationCounter conn_counter;
+
+    if (aerospike_key_select(as, &err, &p, &key, bins.data(), &p_rec) != AEROSPIKE_OK) {
+        if (p_rec != NULL) {
+            as_record_destroy(p_rec);
+        }
+        as_key_destroy(&key);
+        auto nifErrorCode = enif_make_int(env, ASPIKE_NIF_OK);
+        auto aspikeErrorCode = enif_make_int(env, err.code);
+        msg = enif_make_string(env, err.message, ERL_NIF_UTF8);
+        ERL_NIF_TERM error_tuple = enif_make_tuple3(env, nifErrorCode, aspikeErrorCode, msg);
+        return enif_make_tuple2(env, atom_error, error_tuple);
+    }
+
+    as_key_destroy(&key);
+    if (p_rec == NULL) {
+        rc = atom_error;
+        msg = enif_make_string(env, "NULL p_rec - internal error", ERL_NIF_UTF8);
+        ERL_NIF_TERM error_tuple = enif_make_tuple3(env, enif_make_int(env, ASPIKE_NIF_OK), enif_make_int(env, AEROSPIKE_ERR), msg);
+        return enif_make_tuple2(env, rc, error_tuple);
+    }
+
+    msg = aspike_dump_cdt_records(env, p_rec);
+    rc = atom_ok;
+    if (p_rec != NULL) {
+        as_record_destroy(p_rec);
+    }
+    return enif_make_tuple2(env, rc, msg);
+}
+
 ERL_NIF_TERM aspike_nif_cdt_delete_by_keys_sync(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     static aerospike* as = get_aerospike();
 

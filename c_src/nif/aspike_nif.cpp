@@ -726,6 +726,8 @@ static ErlNifFunc nif_funcs[] = {
     {"cdt_delete_by_keys_batch_async", 5, aspike_nif_cdt_delete_by_keys_batch_async},
     NIF_DIRTY_FUN("segment_tag_get_sync", 4, aspike_nif_segment_tag_get_sync),
     {"segment_tag_get_async", 5, aspike_nif_segment_tag_get_async},
+    NIF_DIRTY_FUN("cdt_select_sync", 5, aspike_nif_cdt_select_sync),
+    {"cdt_select_async", 6, aspike_nif_cdt_select_async},
     NIF_DIRTY_FUN("key_select", 4, aspike_nif_key_select_sync),
     NIF_DIRTY_FUN("binary_get", 3, aspike_nif_binary_get_sync),
     NIF_DIRTY_FUN("map_put", 6, aspike_nif_map_put_sync),

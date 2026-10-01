@@ -52,6 +52,7 @@ struct callback_data {
     bool batch_records_initialized = false;
     string node_name;
     string bin_name;
+    vector<string> bin_names;
 
     callback_data(ErlNifEnv* caller_pd_env, const ERL_NIF_TERM ref_to_save) {
         enif_self(caller_pd_env, &caller_pid);
@@ -492,6 +493,108 @@ ERL_NIF_TERM aspike_nif_cdt_get_async(ErlNifEnv* env, int argc, const ERL_NIF_TE
 
     as_error err;
     as_status status = aerospike_key_get_async(as, &err, &policy, &record_key, cdt_get_async_callback, cb_data, NULL, NULL);
+
+    as_key_destroy(&record_key);
+
+    if (status != AEROSPIKE_OK) {
+        delete cb_data;
+
+        ERL_NIF_TERM error_msg;
+        if (strlen(err.message) != 0) {
+            error_msg = enif_make_string(env, err.message, ERL_NIF_UTF8);
+        } else {
+            error_msg = enif_make_string(env, "Unknown error occurred", ERL_NIF_UTF8);
+        }
+        auto nifErrorCode = enif_make_int(env, ASPIKE_NIF_OK);
+        auto aspikeErrorCode = enif_make_int(env, err.code);
+        ERL_NIF_TERM error_tuple = enif_make_tuple3(env, nifErrorCode, aspikeErrorCode, error_msg);
+
+        return_data = enif_make_tuple2(env, atom_error, error_tuple);
+    } else {
+        return_data = enif_make_tuple2(env, atom_ok, atom_in_progress);
+    }
+
+    return return_data;
+}
+
+ERL_NIF_TERM aspike_nif_cdt_select_async(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    static aerospike* as = get_aerospike();
+
+    ErlNifBinary erl_namespace, erl_set_name, erl_record_name;
+    if (!enif_is_ref(env, argv[0])) {
+        return enif_make_badarg(env);
+    }
+    if (!enif_inspect_binary(env, argv[1], &erl_namespace)) {
+        return enif_make_badarg(env);
+    }
+    if (!enif_inspect_binary(env, argv[2], &erl_set_name)) {
+        return enif_make_badarg(env);
+    }
+    if (!enif_inspect_binary(env, argv[3], &erl_record_name)) {
+        return enif_make_badarg(env);
+    }
+
+    // argv[4] is a list of bin name binaries
+    unsigned int bin_list_len;
+    if (!enif_get_list_length(env, argv[4], &bin_list_len) || bin_list_len == 0) {
+        return enif_make_badarg(env);
+    }
+
+    string set_name((const char*)erl_set_name.data, erl_set_name.size);
+    string name_space((const char*)erl_namespace.data, erl_namespace.size);
+    string record_name((const char*)erl_record_name.data, erl_record_name.size);
+
+    // argv[5] is policy tuple
+    const ERL_NIF_TERM* erl_policy = NULL;
+    int policy_length;
+    long max_retries = 0;
+    long socket_timeout = 0;
+    long total_timeout = 0;
+    int policyReadRC = enif_get_tuple(env, argv[5], &policy_length, &erl_policy);
+    if (!policyReadRC || policy_length != 4) {
+        return enif_make_badarg(env);
+    }
+    enif_get_long(env, erl_policy[0], &max_retries);
+    enif_get_long(env, erl_policy[2], &socket_timeout);
+    enif_get_long(env, erl_policy[3], &total_timeout);
+    as_policy_read policy;
+    as_policy_read_init(&policy);
+    policy.base.max_retries = max_retries;
+    policy.base.socket_timeout = socket_timeout;
+    policy.base.total_timeout = total_timeout;
+
+    ERL_NIF_TERM return_data;
+    if (!is_connected(env, &return_data)) return return_data;
+
+    as_key record_key;
+    as_key_init_str(&record_key, name_space.c_str(), set_name.c_str(), record_name.c_str());
+
+    auto cb_data = new callback_data(env, argv[0], name_space, set_name, record_name);
+
+    // Parse bin names list and store in cb_data->bin_names
+    ERL_NIF_TERM list = argv[4];
+    ERL_NIF_TERM head;
+    cb_data->bin_names.reserve(bin_list_len);
+    for (unsigned int i = 0; i < bin_list_len; i++) {
+        enif_get_list_cell(env, list, &head, &list);
+        ErlNifBinary bin;
+        if (!enif_inspect_binary(env, head, &bin)) {
+            delete cb_data;
+            as_key_destroy(&record_key);
+            return enif_make_badarg(env);
+        }
+        cb_data->bin_names.emplace_back((const char*)bin.data, bin.size);
+    }
+
+    // Build NULL-terminated array of C strings pointing into cb_data->bin_names
+    vector<const char*> bins_to_read(bin_list_len + 1);
+    for (unsigned int i = 0; i < bin_list_len; i++) {
+        bins_to_read[i] = cb_data->bin_names[i].c_str();
+    }
+    bins_to_read[bin_list_len] = NULL;
+
+    as_error err;
+    as_status status = aerospike_key_select_async(as, &err, &policy, &record_key, bins_to_read.data(), cdt_get_async_callback, cb_data, NULL, NULL);
 
     as_key_destroy(&record_key);
 

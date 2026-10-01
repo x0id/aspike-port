@@ -71,6 +71,8 @@
     cdt_put_async/7,
     cdt_get_sync/4,
     cdt_get_async/5,
+    cdt_select_sync/5,
+    cdt_select_async/6,
     segment_tag_get_sync/4,
     segment_tag_get_async/5
 ]).
@@ -115,6 +117,8 @@
     cdt_put_async/7,
     cdt_get_sync/4,
     cdt_get_async/5,
+    cdt_select_sync/5,
+    cdt_select_async/6,
     segment_tag_get_sync/4,
     segment_tag_get_async/5
 ]).
@@ -296,6 +300,14 @@ cdt_get_sync(_Namespace, _Set, _RecordKeyName, _Policy) ->
 
 -spec cdt_get_async(reference(), binary(), binary(), binary(), {integer(), integer(), integer(), integer()}) -> {ok, atom()} | {error, {integer(), integer(), string()}}.
 cdt_get_async(_Ref, _Namespace, _Set, _RecordKeyName, _Policy) ->
+    not_loaded(?LINE).
+
+-spec cdt_select_sync(binary(), binary(), binary(), [binary()], {integer(), integer(), integer(), integer()}) -> {ok, [{binary(), term()}]} | {error, {integer(), integer(), string()}}.
+cdt_select_sync(_Namespace, _Set, _RecordKeyName, _BinNames, _Policy) ->
+    not_loaded(?LINE).
+
+-spec cdt_select_async(reference(), binary(), binary(), binary(), [binary()], {integer(), integer(), integer(), integer()}) -> {ok, atom()} | {error, {integer(), integer(), string()}}.
+cdt_select_async(_Ref, _Namespace, _Set, _RecordKeyName, _BinNames, _Policy) ->
     not_loaded(?LINE).
 
 -spec binary_remove(binary(), binary(), binary(), [binary()], integer()) ->

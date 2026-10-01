@@ -7,6 +7,7 @@ ERL_NIF_TERM aspike_nif_cdt_delete_by_keys_sync (ErlNifEnv* env, int argc, const
 ERL_NIF_TERM aspike_nif_cdt_delete_by_keys_batch_sync (ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM aspike_nif_segment_tag_get_sync (ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM aspike_nif_key_select_sync (ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM aspike_nif_cdt_select_sync (ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM aspike_nif_binary_get_sync (ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM aspike_nif_map_put_sync(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM aspike_nif_key_get_sync (ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
